@@ -37,7 +37,7 @@ export class AlfrescoApi implements EventEmitter.Emitter {
     discoveryClient: ContentClient;
     gsClient: ContentClient;
     authClient: ContentClient;
-
+    oauth2Auth: Oauth2Auth;
     processAuth: ProcessAuth;
     contentAuth: ContentAuth;
 
@@ -46,7 +46,8 @@ export class AlfrescoApi implements EventEmitter.Emitter {
     once: EventEmitter.EmitterMethod;
     emit: (type: string, ...args: any[]) => void;
 
-    constructor(private oauth2Auth: Oauth2Auth, config?: AlfrescoApiConfig) {
+
+    constructor(config?: AlfrescoApiConfig) {
         Emitter(this);
 
         if (config) {
@@ -97,7 +98,7 @@ export class AlfrescoApi implements EventEmitter.Emitter {
         return config;
     }
 
-    public setOAuth2(newInstance: any) {
+    public setOAuth2(newInstance: Oauth2Auth) {
         this.oauth2Auth = newInstance;
     }
 
