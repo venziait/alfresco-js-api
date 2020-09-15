@@ -48,8 +48,13 @@ export class AlfrescoApi implements EventEmitter.Emitter {
     emit: (type: string, ...args: any[]) => void;
 
 
-    constructor(config?: AlfrescoApiConfig) {
+    constructor(config?: AlfrescoApiConfig, oauth?: Oauth2Auth ) {
         Emitter(this);
+
+        //SeiDoc
+        if (oauth) {
+            this.oauth2Auth = oauth;
+        }
 
         if (config) {
             this.setConfig(config);
@@ -97,10 +102,6 @@ export class AlfrescoApi implements EventEmitter.Emitter {
         }
 
         return config;
-    }
-
-    public setOAuth2(newInstance: Oauth2Auth) {
-        this.oauth2Auth = newInstance;
     }
 
     private clientsFactory() {
