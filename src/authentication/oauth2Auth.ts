@@ -22,6 +22,7 @@ import { Authentication } from './authentication';
 import * as _minimatch from 'minimatch';
 import { AuthenticationApi } from '../api/auth-rest-api/api/authentication.api';
 import { AlfrescoApi } from '../alfrescoApi';
+import { Observable } from 'rxjs';
 
 const minimatch = _minimatch;
 const EventEmitter: any = ee;
@@ -621,7 +622,7 @@ export class Oauth2Auth extends AlfrescoApiClient {
      *
      * @returns {Boolean} is logged in
      */
-    isLoggedIn(): boolean {
+    isLoggedIn(): Observable<boolean> | boolean {
         return !!this.authentications.oauth2.accessToken;
     }
 

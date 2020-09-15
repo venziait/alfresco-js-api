@@ -24,6 +24,7 @@ import { Storage } from './storage';
 import { AlfrescoApiConfig } from './alfrescoApiConfig';
 import { Authentication } from './authentication/authentication';
 import { Oauth2Auth } from './authentication/oauth2Auth';
+import { Observable } from 'rxjs';
 
 const Emitter: any = EventEmitter;
 
@@ -407,7 +408,7 @@ export class AlfrescoApi implements EventEmitter.Emitter {
     /**
      * If the client is logged in return true
      */
-    isLoggedIn(): boolean {
+    isLoggedIn(): Observable<boolean> | boolean {
         if (this.isOauthConfiguration()) {
             return this.oauth2Auth.isLoggedIn();
         } else {
@@ -423,7 +424,7 @@ export class AlfrescoApi implements EventEmitter.Emitter {
         }
     }
 
-    isBpmLoggedIn(): boolean {
+    isBpmLoggedIn(): Observable<boolean> | boolean {
         if (this.isBpmConfiguration() || this.isEcmBpmConfiguration()) {
             if (this.isOauthConfiguration()) {
                 return this.oauth2Auth.isLoggedIn();
@@ -434,7 +435,7 @@ export class AlfrescoApi implements EventEmitter.Emitter {
         return false;
     }
 
-    isEcmLoggedIn(): boolean {
+    isEcmLoggedIn(): Observable<boolean> | boolean {
         if (this.isEcmConfiguration() || this.isEcmBpmConfiguration()) {
             if (this.isOauthConfiguration()) {
                 return this.oauth2Auth.isLoggedIn();
