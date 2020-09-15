@@ -34,6 +34,7 @@ import { AlfrescoUpload } from './api-legacy/alfrescoUpload';
 import { NodesApi } from './api-legacy/content-rest-api/src/api/nodesApi';
 import { ProcessClient } from './processClient';
 import { ContentClient } from './contentClient';
+import { Oauth2Auth } from './authentication/oauth2Auth';
 
 /**
  * @deprecated 3.0.0
@@ -107,8 +108,8 @@ export class AlfrescoApiCompatibility extends AlfrescoApi {
      */
     ecmClient: ContentClient;
 
-    constructor(config: AlfrescoApiConfig) {
-        super(config);
+    constructor(config: AlfrescoApiConfig, oauth: Oauth2Auth) {
+        super(config, oauth);
 
         this.initObjects();
     }
