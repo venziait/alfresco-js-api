@@ -23,8 +23,8 @@ import { ProcessClient } from './processClient';
 import { Storage } from './storage';
 import { AlfrescoApiConfig } from './alfrescoApiConfig';
 import { Authentication } from './authentication/authentication';
-import { Oauth2Auth } from './authentication/oauth2Auth';
 import { Observable } from 'rxjs';
+import { Oauth2Auth0 } from './authentication/oauth2Auth0';
 
 const Emitter: any = EventEmitter;
 
@@ -38,7 +38,7 @@ export class AlfrescoApi implements EventEmitter.Emitter {
     discoveryClient: ContentClient;
     gsClient: ContentClient;
     authClient: ContentClient;
-    oauth2Auth: Oauth2Auth;
+    oauth2Auth: Oauth2Auth0;
     processAuth: ProcessAuth;
     contentAuth: ContentAuth;
 
@@ -48,13 +48,8 @@ export class AlfrescoApi implements EventEmitter.Emitter {
     emit: (type: string, ...args: any[]) => void;
 
 
-    constructor(config?: AlfrescoApiConfig, oauth?: Oauth2Auth ) {
+    constructor(config?: AlfrescoApiConfig) {
         Emitter(this);
-
-        //SeiDoc
-        if (oauth) {
-            this.oauth2Auth = oauth;
-        }
 
         if (config) {
             this.setConfig(config);
@@ -78,7 +73,7 @@ export class AlfrescoApi implements EventEmitter.Emitter {
         if (this.isOauthConfiguration()) {
 
             if (!this.oauth2Auth ) {
-                this.oauth2Auth = new Oauth2Auth(this.config, this);
+                this.oauth2Auth = new Oauth2Auth0(this.config, this);
             } else {
                 this.oauth2Auth.setConfig(this.config, this);
             }

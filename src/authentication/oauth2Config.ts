@@ -17,6 +17,7 @@
 
 export interface Oauth2Config {
     clientId: string;
+    audience: string;
     secret?: string;
     host: string;
     scope: string;

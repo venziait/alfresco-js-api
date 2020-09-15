@@ -16,23 +16,20 @@
 */
 
 import * as ee from 'event-emitter';
-import { AlfrescoApiClient } from '../alfrescoApiClient';
 import { AlfrescoApiConfig } from '../alfrescoApiConfig';
 import { Authentication } from './authentication';
 import * as _minimatch from 'minimatch';
 import { AuthenticationApi } from '../api/auth-rest-api/api/authentication.api';
 import { AlfrescoApi } from '../alfrescoApi';
 import { Observable } from 'rxjs';
+import { Oauth2Auth } from './oauth2Auth';
 
 const minimatch = _minimatch;
 const EventEmitter: any = ee;
 
 declare let window: Window;
 
-export class Oauth2Auth extends AlfrescoApiClient {
-
-    protected iFrameTimeOut: any;
-    protected checkAccessToken: boolean = true;
+export class Oauth2Auth0 extends Oauth2Auth {
 
     hashFragmentParams: any;
     token: string;
@@ -45,7 +42,7 @@ export class Oauth2Auth extends AlfrescoApiClient {
     iFrameHashListener: any;
 
     constructor(config: AlfrescoApiConfig, alfrescoApi: AlfrescoApi) {
-        super();
+        super(config, alfrescoApi);
 
         this.className = 'Oauth2Auth';
 
@@ -116,9 +113,9 @@ export class Oauth2Auth extends AlfrescoApiClient {
     }
 
     discoveryUrls() {
-        this.discovery.loginUrl = `${this.host}/oauth2/authorize`;
-        this.discovery.logoutUrl = `${this.host}/oauth2/revoke`;
-        this.discovery.tokenEndpoint = `${this.host}/oauth2/token`;
+        this.discovery.loginUrl = `${this.host}/authorize`;
+        this.discovery.logoutUrl = `${this.host}/oauth/revoke`;
+        this.discovery.tokenEndpoint = `${this.host}/oauth/token`;
     }
 
 
@@ -302,17 +299,6 @@ export class Oauth2Auth extends AlfrescoApiClient {
         }
     }
 
-    genNonce(): string {
-        let text = '';
-        const possible =
-            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-
-        for (let i = 0; i < 40; i++) {
-            text += possible.charAt(Math.floor(Math.random() * possible.length));
-        }
-
-        return text;
-    }
 
     composeImplicitLoginUrl(): string {
         let nonce = this.genNonce();
@@ -325,6 +311,8 @@ export class Oauth2Auth extends AlfrescoApiClient {
             separation +
             'client_id=' +
             encodeURIComponent(this.config.oauth2.clientId) +
+            'audience=' +
+            encodeURIComponent(this.config.oauth2.audience) +
             '&redirect_uri=' +
             encodeURIComponent(this.config.oauth2.redirectUri) +
             '&scope=' +
@@ -332,30 +320,9 @@ export class Oauth2Auth extends AlfrescoApiClient {
             '&response_type=' +
             encodeURIComponent('code') +
             '&nonce=' +
-            encodeURIComponent(nonce);
-
-    }
-
-    composeIframeLoginUrl(): string {
-        let nonce = this.genNonce();
-
-        this.storage.setItem('nonce', nonce);
-
-        let separation = this.discovery.loginUrl.indexOf('?') > -1 ? '&' : '?';
-
-        return this.discovery.loginUrl +
-            separation +
-            'client_id=' +
-            encodeURIComponent(this.config.oauth2.clientId) +
-            '&redirect_uri=' +
-            encodeURIComponent(this.config.oauth2.redirectSilentIframeUri) +
-            '&scope=' +
-            encodeURIComponent(this.config.oauth2.scope) +
-            '&response_type=' +
-            encodeURIComponent('code') +
-            '&nonce=' +
             encodeURIComponent(nonce) +
-            '&prompt=none';
+            '&response_mode=' +
+            encodeURIComponent('query');
 
     }
 
