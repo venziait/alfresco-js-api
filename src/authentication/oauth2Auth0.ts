@@ -23,6 +23,7 @@ import { AuthenticationApi } from '../api/auth-rest-api/api/authentication.api';
 import { AlfrescoApi } from '../alfrescoApi';
 import { Observable } from 'rxjs';
 import { Oauth2Auth } from './oauth2Auth';
+import createAuth0Client, { Auth0Client } from '@auth0/auth0-spa-js';
 
 const minimatch = _minimatch;
 const EventEmitter: any = ee;
@@ -34,6 +35,8 @@ export class Oauth2Auth0 extends Oauth2Auth {
     hashFragmentParams: any;
     token: string;
     discovery: any = {};
+
+    auth0: Auth0Client;
 
     authentications: Authentication = {
         'oauth2': { accessToken: '' }, type: 'oauth2', 'basicAuth': {}
@@ -96,19 +99,52 @@ export class Oauth2Auth0 extends Oauth2Auth {
             if (this.hasContentProvider()) {
                 this.exchangeTicketListener(alfrescoApi);
             }
+            //create auth0
+            this.createAuth0(config);
 
             this.initOauth(); // jshint ignore:line
         }
     }
 
+    async createAuth0(config: AlfrescoApiConfig) {
+
+        this.auth0 = await createAuth0Client({
+            domain: config.oauth2.host,
+            client_id: config.oauth2.clientId,
+            redirect_uri: `${window.location.origin}`,
+            audience: config.oauth2.audience
+        });
+
+    }
+
     async initOauth() {
+
+        const isAuthenticated = await this.auth0.isAuthenticated();
+
+        /*
         if (!this.config.oauth2.implicitFlow && this.isValidAccessToken()) {
             const accessToken = this.storage.getItem('access_token');
             this.setToken(accessToken, null);
         }
+        */
 
-        if (this.config.oauth2.implicitFlow) {
-            await this.checkFragment();
+        if (isAuthenticated) {
+            const token = await this.auth0.getTokenSilently();
+            this.authentications.oauth2.accessToken = token; // Get the access token from the Auth0 client
+        }
+
+        if (!isAuthenticated && this.config.oauth2.implicitFlow) {
+            try {
+                const result = await this.auth0.handleRedirectCallback();
+
+                if (result.appState && result.appState.targetUrl) {
+                    showContentFromUrl(result.appState.targetUrl);
+                }
+
+                console.log('Logged in!');
+            } catch (err) {
+                console.log('Error parsing redirect:', err);
+            }
         }
     }
 
@@ -291,9 +327,9 @@ export class Oauth2Auth0 extends Oauth2Auth {
         return this.storage.getItem('access_token');
     }
 
-    redirectLogin(): void {
+    async redirectLogin(): Promise<void> {
         if (this.config.oauth2.implicitFlow && typeof window !== 'undefined') {
-            let href = this.composeImplicitLoginUrl();
+            const href = await this.auth0.buildAuthorizeUrl();
             window.location.href = href;
             this.emit('implicit_redirect', href);
         }
@@ -597,29 +633,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
      * Logout
      **/
     async logOut() {
-        this.checkAccessToken = true;
-        clearTimeout(this.iFrameTimeOut);
-        const id_token = this.getIdToken();
-
-        this.invalidateSession();
-
-        this.setToken(null, null);
-
-        let separation = this.discovery.logoutUrl.indexOf('?') > -1 ? '&' : '?';
-
-        let redirectLogout = this.config.oauth2.redirectUriLogout || this.config.oauth2.redirectUri;
-
-        let logoutUrl = this.discovery.logoutUrl +
-            separation +
-            'post_logout_redirect_uri=' +
-            encodeURIComponent(redirectLogout) +
-            '&id_token_hint=' +
-            encodeURIComponent(id_token);
-
-        if (id_token != null && this.config.oauth2.implicitFlow && typeof window !== 'undefined') {
-            window.location.href = logoutUrl;
-        }
-
+        this.auth0.logout();
     }
 
     invalidateSession() {
