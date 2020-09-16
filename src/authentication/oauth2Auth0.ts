@@ -99,25 +99,26 @@ export class Oauth2Auth0 extends Oauth2Auth {
             if (this.hasContentProvider()) {
                 this.exchangeTicketListener(alfrescoApi);
             }
-            //create auth0
-            this.createAuth0(config);
+
 
             this.initOauth(); // jshint ignore:line
         }
     }
 
-    async createAuth0(config: AlfrescoApiConfig) {
+    async createAuth0() {
 
         this.auth0 = await createAuth0Client({
-            domain: config.oauth2.host,
-            client_id: config.oauth2.clientId,
+            domain: this.config.oauth2.host,
+            client_id: this.config.oauth2.clientId,
             redirect_uri: `${window.location.origin}`,
-            audience: config.oauth2.audience
+            audience: this.config.oauth2.audience
         });
 
     }
 
     async initOauth() {
+
+        await this.createAuth0();
 
         const isAuthenticated = await this.auth0.isAuthenticated();
 
@@ -131,19 +132,26 @@ export class Oauth2Auth0 extends Oauth2Auth {
         if (isAuthenticated) {
             const token = await this.auth0.getTokenSilently();
             this.authentications.oauth2.accessToken = token; // Get the access token from the Auth0 client
+            window.location.href = this.config.oauth2.redirectUri;
         }
 
         if (!isAuthenticated && this.config.oauth2.implicitFlow) {
-            try {
-                const result = await this.auth0.handleRedirectCallback();
+            const query = window.location.search;
+            const shouldParseResult = query.includes('code=') && query.includes('state=');
+            if (shouldParseResult) {
+                try {
+                    const result = await this.auth0.handleRedirectCallback();
 
-                if (result.appState && result.appState.targetUrl) {
-                    showContentFromUrl(result.appState.targetUrl);
+                    if (result.appState && result.appState.targetUrl) {
+                        window.location.href = this.config.oauth2.redirectUri;
+                    }
+
+                    console.log('Logged in!');
+                } catch (err) {
+                    console.log('Error parsing redirect:', err);
                 }
-
-                console.log('Logged in!');
-            } catch (err) {
-                console.log('Error parsing redirect:', err);
+            } else {
+                this.implicitLogin();
             }
         }
     }
@@ -176,7 +184,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
             let expiresIn = this.hashFragmentParams.expires_in;
 
             if (!sessionState) {
-                throw('session state not present');
+                throw ('session state not present');
             }
 
             const jwt = this.processJWTToken(idToken);
@@ -190,7 +198,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
                     return accessToken;
                 }
             } catch (error) {
-                throw('Validation JWT error' + error);
+                throw ('Validation JWT error' + error);
             }
 
         } else {
@@ -232,11 +240,11 @@ export class Oauth2Auth0 extends Oauth2Auth {
             const savedNonce = this.storage.getItem('nonce');
 
             if (!payload.sub) {
-                throw('Missing sub in JWT');
+                throw ('Missing sub in JWT');
             }
 
             if (payload.nonce !== savedNonce) {
-                throw('Failing nonce JWT is not corrisponding' + payload.nonce);
+                throw ('Failing nonce JWT is not corrisponding' + payload.nonce);
             }
 
             return {
@@ -284,12 +292,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
     }
 
     implicitLogin() {
-        if (!this.isValidToken() || !this.isValidAccessToken()) {
-            this.redirectLogin();
-        } else {
-            let accessToken = this.storage.getItem('access_token');
-            this.setToken(accessToken, null);
-        }
+        this.redirectLogin();
     }
 
     isValidToken(): boolean {
@@ -327,11 +330,15 @@ export class Oauth2Auth0 extends Oauth2Auth {
         return this.storage.getItem('access_token');
     }
 
-    async redirectLogin(): Promise<void> {
+    async redirectLogin(redirectPath: string = '/'): Promise<void> {
         if (this.config.oauth2.implicitFlow && typeof window !== 'undefined') {
-            const href = await this.auth0.buildAuthorizeUrl();
-            window.location.href = href;
-            this.emit('implicit_redirect', href);
+
+            this.auth0.loginWithRedirect({
+                redirect_uri: `${window.location.origin}`,
+                appState: { target: redirectPath }
+            });
+
+            //this.emit('implicit_redirect', href);
         }
     }
 
@@ -449,7 +456,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
         this.iFrameTimeOut = setTimeout(() => {
             this.destroyIframe();
             this.createIframe();
-        },                              this.config.oauth2.refreshTokenTimeout);
+        }, this.config.oauth2.refreshTokenTimeout);
     }
 
     removeHashFromSilentIframe() {
@@ -633,7 +640,10 @@ export class Oauth2Auth0 extends Oauth2Auth {
      * Logout
      **/
     async logOut() {
-        this.auth0.logout();
+        this.auth0.logout({
+            client_id: this.config.oauth2.clientId,
+            returnTo: window.location.origin
+        });
     }
 
     invalidateSession() {
