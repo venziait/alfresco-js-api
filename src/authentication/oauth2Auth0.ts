@@ -19,13 +19,11 @@ import * as ee from 'event-emitter';
 import { AlfrescoApiConfig } from '../alfrescoApiConfig';
 import { Authentication } from './authentication';
 import * as _minimatch from 'minimatch';
-import { AuthenticationApi } from '../api/auth-rest-api/api/authentication.api';
 import { AlfrescoApi } from '../alfrescoApi';
 import { Observable } from 'rxjs';
 import { Oauth2Auth } from './oauth2Auth';
 import createAuth0Client, { Auth0Client } from '@auth0/auth0-spa-js';
 
-const minimatch = _minimatch;
 const EventEmitter: any = ee;
 
 declare let window: Window;
@@ -58,6 +56,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
         this.config = config;
 
         if (this.config.oauth2) {
+
             if (this.config.oauth2.host === undefined || this.config.oauth2.host === null) {
                 throw 'Missing the required oauth2 host parameter';
             }
@@ -70,25 +69,11 @@ export class Oauth2Auth0 extends Oauth2Auth {
                 throw 'Missing the required oauth2 scope parameter';
             }
 
-            if (this.config.oauth2.secret === undefined || this.config.oauth2.secret === null) {
-                this.config.oauth2.secret = '';
-            }
 
             if ((this.config.oauth2.redirectUri === undefined || this.config.oauth2.redirectUri === null) && this.config.oauth2.implicitFlow) {
                 throw 'Missing redirectUri required parameter';
             }
 
-            if (!this.config.oauth2.refreshTokenTimeout) {
-                this.config.oauth2.refreshTokenTimeout = 30000;
-            }
-
-            if (!this.config.oauth2.redirectSilentIframeUri) {
-                let context = '';
-                if (typeof window !== 'undefined') {
-                    context = window.location.origin;
-                }
-                this.config.oauth2.redirectSilentIframeUri = context + '/assets/silent-refresh.html';
-            }
 
             this.basePath = this.config.oauth2.host; //Auth Call
 
@@ -122,16 +107,10 @@ export class Oauth2Auth0 extends Oauth2Auth {
 
         const isAuthenticated = await this.auth0.isAuthenticated();
 
-        /*
-        if (!this.config.oauth2.implicitFlow && this.isValidAccessToken()) {
-            const accessToken = this.storage.getItem('access_token');
-            this.setToken(accessToken, null);
-        }
-        */
 
         if (isAuthenticated) {
             const token = await this.auth0.getTokenSilently();
-            this.authentications.oauth2.accessToken = token; // Get the access token from the Auth0 client
+            this.setToken(token, null);
             window.location.href = this.config.oauth2.redirectUri;
         }
 
@@ -151,139 +130,13 @@ export class Oauth2Auth0 extends Oauth2Auth {
                     console.log('Error parsing redirect:', err);
                 }
             } else {
-                this.implicitLogin();
-            }
-        }
-    }
-
-    discoveryUrls() {
-        this.discovery.loginUrl = `${this.host}/authorize`;
-        this.discovery.logoutUrl = `${this.host}/oauth/revoke`;
-        this.discovery.tokenEndpoint = `${this.host}/oauth/token`;
-    }
-
-
-    hasContentProvider(): boolean {
-        return this.config.provider === 'ECM' || this.config.provider === 'ALL';
-    }
-
-    checkFragment(externalHash?: any): any {// jshint ignore:line
-        this.hashFragmentParams = this.getHashFragmentParams(externalHash);
-
-        if (externalHash === undefined && this.isValidAccessToken()) {
-            let accessToken = this.storage.getItem('access_token');
-            this.setToken(accessToken, null);
-            this.silentRefresh();
-            return accessToken;
-        }
-
-        if (this.hashFragmentParams) {
-            let accessToken = this.hashFragmentParams.access_token;
-            let idToken = this.hashFragmentParams.id_token;
-            let sessionState = this.hashFragmentParams.session_state;
-            let expiresIn = this.hashFragmentParams.expires_in;
-
-            if (!sessionState) {
-                throw ('session state not present');
-            }
-
-            const jwt = this.processJWTToken(idToken);
-            try {
-                if (jwt) {
-                    this.storeIdToken(idToken, jwt.payload.exp);
-                    this.storeAccessToken(accessToken, expiresIn);
-                    this.authentications.basicAuth.username = jwt.payload.preferred_username;
-                    this.saveUsername(jwt.payload.preferred_username);
-                    this.silentRefresh();
-                    return accessToken;
+                if (this.config.oauth2.silentLogin && !this.isPublicUrl()) {
+                    this.implicitLogin();
                 }
-            } catch (error) {
-                throw ('Validation JWT error' + error);
-            }
-
-        } else {
-            if (this.config.oauth2.silentLogin && !this.isPublicUrl()) {
-                this.implicitLogin();
             }
         }
-
     }
 
-    isPublicUrl(): boolean {
-        const publicUrls = this.config.oauth2.publicUrls || [];
-
-        if (Array.isArray(publicUrls)) {
-            return publicUrls.length &&
-                publicUrls.some((urlPattern: string) => minimatch(window.location.href, urlPattern));
-        }
-        return false;
-    }
-
-    padBase64(base64data: any) {
-        while (base64data.length % 4 !== 0) {
-            base64data += '=';
-        }
-        return base64data;
-    }
-
-    processJWTToken(jwt: any): any {
-        if (jwt) {
-            const jwtArray = jwt.split('.');
-            const headerBase64 = this.padBase64(jwtArray[0]);
-            const headerJson = this.b64DecodeUnicode(headerBase64);
-            const header = JSON.parse(headerJson);
-
-            const payloadBase64 = this.padBase64(jwtArray[1]);
-            const payloadJson = this.b64DecodeUnicode(payloadBase64);
-            const payload = JSON.parse(payloadJson);
-
-            const savedNonce = this.storage.getItem('nonce');
-
-            if (!payload.sub) {
-                throw ('Missing sub in JWT');
-            }
-
-            if (payload.nonce !== savedNonce) {
-                throw ('Failing nonce JWT is not corrisponding' + payload.nonce);
-            }
-
-            return {
-                idToken: jwt,
-                payload: payload,
-                header: header
-            };
-        }
-    }
-
-    b64DecodeUnicode(b64string: string) {
-        const base64 = b64string.replace(/\-/g, '+').replace(/\_/g, '/');
-        return decodeURIComponent(
-            atob(base64)
-                .split('')
-                .map((c) => {
-                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-                })
-                .join('')
-        );
-    }
-
-    storeIdToken(idToken: string, exp: number) {
-        this.storage.setItem('id_token', idToken);
-        this.storage.setItem('id_token_expires_at', Number(exp * 1000).toString());
-        this.storage.setItem('id_token_stored_at', Date.now().toString());
-    }
-
-    storeAccessToken(accessToken: string, expiresIn: number, refreshToken?: string) {
-        this.storage.setItem('access_token', accessToken);
-
-        const expiresInMilliSeconds = expiresIn * 1000;
-        const now = new Date();
-        const expiresAt = now.getTime() + expiresInMilliSeconds;
-
-        this.storage.setItem('access_token_expires_in', expiresAt);
-        this.storage.setItem('access_token_stored_at', Date.now().toString());
-        this.setToken(accessToken, refreshToken);
-    }
 
     saveUsername(username: string) {
         if (this.storage.supportsStorage()) {
@@ -295,32 +148,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
         this.redirectLogin();
     }
 
-    isValidToken(): boolean {
-        let validToken = false;
-        if (this.getIdToken()) {
-            let expiresAt = this.storage.getItem('id_token_expires_at'),
-                now = new Date();
-            if (expiresAt && parseInt(expiresAt, 10) >= now.getTime()) {
-                validToken = true;
-            }
-        }
 
-        return validToken;
-    }
-
-    isValidAccessToken(): boolean {
-        let validAccessToken = false;
-
-        if (this.getAccessToken()) {
-            const expiresAt = this.storage.getItem('access_token_expires_in');
-            const now = new Date();
-            if (expiresAt && parseInt(expiresAt, 10) >= now.getTime()) {
-                validAccessToken = true;
-            }
-        }
-
-        return validAccessToken;
-    }
 
     getIdToken(): string {
         return this.storage.getItem('id_token');
@@ -342,159 +170,6 @@ export class Oauth2Auth0 extends Oauth2Auth {
         }
     }
 
-
-    composeImplicitLoginUrl(): string {
-        let nonce = this.genNonce();
-
-        this.storage.setItem('nonce', nonce);
-
-        let separation = this.discovery.loginUrl.indexOf('?') > -1 ? '&' : '?';
-
-        return this.discovery.loginUrl +
-            separation +
-            'client_id=' +
-            encodeURIComponent(this.config.oauth2.clientId) +
-            'audience=' +
-            encodeURIComponent(this.config.oauth2.audience) +
-            '&redirect_uri=' +
-            encodeURIComponent(this.config.oauth2.redirectUri) +
-            '&scope=' +
-            encodeURIComponent(this.config.oauth2.scope) +
-            '&response_type=' +
-            encodeURIComponent('code') +
-            '&nonce=' +
-            encodeURIComponent(nonce) +
-            '&response_mode=' +
-            encodeURIComponent('query');
-
-    }
-
-    hasHashCharacter(hash: string): boolean {
-        return hash.indexOf('#') === 0;
-    }
-
-    startWithHashRoute(hash: string) {
-        return hash.startsWith('#/');
-    }
-
-    getHashFragmentParams(externalHash: string): string {
-        let hashFragmentParams = null;
-
-        if (typeof window !== 'undefined') {
-            let hash;
-
-            if (!externalHash) {
-                hash = decodeURIComponent(window.location.hash);
-                if (!this.startWithHashRoute(hash)) {
-                    window.location.hash = '';
-                }
-            } else {
-                hash = decodeURIComponent(externalHash);
-                this.removeHashFromSilentIframe();
-                this.destroyIframe();
-            }
-
-            if (this.hasHashCharacter(hash) && !this.startWithHashRoute(hash)) {
-                const questionMarkPosition = hash.indexOf('?');
-
-                if (questionMarkPosition > -1) {
-                    hash = hash.substr(questionMarkPosition + 1);
-                } else {
-                    hash = hash.substr(1);
-                }
-                hashFragmentParams = this.parseQueryString(hash);
-            }
-        }
-        return hashFragmentParams;
-    }
-
-    parseQueryString(queryString: string): any {
-        const data: { [key: string]: Object } = {};
-        let pairs, pair, separatorIndex, escapedKey, escapedValue, key, value;
-
-        if (queryString !== null) {
-            pairs = queryString.split('&');
-
-            for (let i = 0; i < pairs.length; i++) {
-                pair = pairs[i];
-                separatorIndex = pair.indexOf('=');
-
-                if (separatorIndex === -1) {
-                    escapedKey = pair;
-                    escapedValue = null;
-                } else {
-                    escapedKey = pair.substr(0, separatorIndex);
-                    escapedValue = pair.substr(separatorIndex + 1);
-                }
-
-                key = decodeURIComponent(escapedKey);
-                value = decodeURIComponent(escapedValue);
-
-                if (key.substr(0, 1) === '/') {
-                    key = key.substr(1);
-                }
-
-                data[key] = value;
-            }
-        }
-
-        return data;
-    }
-
-    silentRefresh(): void {
-        if (typeof document === 'undefined') {
-            return;
-        }
-
-        if (this.checkAccessToken) {
-            this.destroyIframe();
-            this.createIframe();
-            this.checkAccessToken = false;
-            return;
-        }
-
-        this.iFrameTimeOut = setTimeout(() => {
-            this.destroyIframe();
-            this.createIframe();
-        }, this.config.oauth2.refreshTokenTimeout);
-    }
-
-    removeHashFromSilentIframe() {
-        let iframe: any = document.getElementById('silent_refresh_token_iframe');
-        if (iframe && iframe.contentWindow.location.hash) {
-            iframe.contentWindow.location.hash = '';
-        }
-    }
-
-    createIframe() {
-        const iframe = document.createElement('iframe');
-        iframe.id = 'silent_refresh_token_iframe';
-        let loginUrl = this.composeIframeLoginUrl();
-        iframe.setAttribute('src', loginUrl);
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-
-        this.iFrameHashListener = () => {
-            let silentRefreshTokenIframe: any = document.getElementById('silent_refresh_token_iframe');
-            let hash = silentRefreshTokenIframe.contentWindow.location.hash;
-            try {
-                this.checkFragment(hash);
-            } catch (e) {
-                this.logOut();
-            }
-        };
-
-        iframe.addEventListener('load', this.iFrameHashListener);
-    }
-
-    destroyIframe() {
-        const iframe = document.getElementById('silent_refresh_token_iframe');
-
-        if (iframe) {
-            iframe.removeEventListener('load', this.iFrameHashListener);
-            document.body.removeChild(iframe);
-        }
-    }
 
     /**
      * login Alfresco API
@@ -545,51 +220,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
         EventEmitter(promise); // jshint ignore:line
     }
 
-    /**
-     * Refresh the  Token
-     * */
-    refreshToken(): Promise<any> {
-        let postBody = {}, pathParams = {}, queryParams = {}, formParams = {};
 
-        let auth = 'Basic ' + btoa(this.config.oauth2.clientId + ':' + this.config.oauth2.secret);
-
-        let headerParams = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Cache-Control': 'no-cache',
-            'Authorization': auth
-        };
-
-        queryParams = {
-            refresh_token: this.authentications.oauth2.refreshToken,
-            grant_type: 'refresh_token'
-        };
-
-        let contentTypes = ['application/x-www-form-urlencoded'];
-        let accepts = ['application/json'];
-
-        let promise = new Promise((resolve, reject) => {
-            this.callCustomApi(
-                this.discovery.tokenEndpoint, 'POST',
-                pathParams, queryParams, headerParams, formParams, postBody,
-                contentTypes, accepts
-            ).then(
-                (data: any) => {
-                    this.setToken(data.access_token, data.refresh_token);
-                    resolve(data);
-                },
-                (error) => {
-                    if (error.error.status === 401) {
-                        this.emit('unauthorized');
-                    }
-                    this.emit('error');
-                    reject(error.error);
-                });
-        });
-
-        EventEmitter(promise); // jshint ignore:line
-
-        return promise;
-    }
 
     /**
      * Set the current Token
@@ -621,13 +252,6 @@ export class Oauth2Auth0 extends Oauth2Auth {
     }
 
     /**
-     * Change the Host
-     * */
-    changeHost(host: string) {
-        this.config.hostOauth2 = host;
-    }
-
-    /**
      * If the client is logged in return true
      *
      * @returns {Boolean} is logged in
@@ -646,27 +270,4 @@ export class Oauth2Auth0 extends Oauth2Auth {
         });
     }
 
-    invalidateSession() {
-        this.storage.removeItem('access_token');
-        this.storage.removeItem('access_token_expires_in');
-        this.storage.removeItem('access_token_stored_at');
-
-        this.storage.removeItem('id_token');
-        this.storage.removeItem('id_token');
-        this.storage.removeItem('id_token_claims_obj');
-        this.storage.removeItem('id_token_expires_at');
-        this.storage.removeItem('id_token_stored_at');
-
-        this.storage.removeItem('nonce');
-    }
-
-    exchangeTicketListener(alfrescoApi: AlfrescoApi) {
-        this.once('token_issued', async () => {
-            const authContentApi: AuthenticationApi = new AuthenticationApi(alfrescoApi);
-            authContentApi.apiClient.authentications = this.authentications;
-            const ticketEntry = await authContentApi.getTicket();
-            this.config.ticketEcm = ticketEntry.entry.id;
-            this.emit('ticket_exchanged');
-        });
-    }
 }
