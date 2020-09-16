@@ -266,7 +266,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
     async logOut() {
         this.auth0.logout({
             client_id: this.config.oauth2.clientId,
-            returnTo: window.location.origin
+            returnTo: `${window.location.origin}`
         });
     }
 
