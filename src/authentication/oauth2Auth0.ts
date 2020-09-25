@@ -95,7 +95,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
         this.auth0 = await createAuth0Client({
             domain: this.config.oauth2.host,
             client_id: this.config.oauth2.clientId,
-            redirect_uri: `${window.location.origin}`,
+            redirect_uri: this.config.oauth2.redirectUri,
             audience: this.config.oauth2.audience
         });
 
@@ -111,7 +111,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
         if (isAuthenticated) {
             const token = await this.auth0.getTokenSilently();
             this.setToken(token, null);
-            window.location.href = this.config.oauth2.redirectUri;
+          //  window.location.href = this.config.oauth2.redirectUri;
         }
 
         if (!isAuthenticated && this.config.oauth2.implicitFlow) {
@@ -162,7 +162,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
         if (this.config.oauth2.implicitFlow && typeof window !== 'undefined') {
 
             this.auth0.loginWithRedirect({
-                redirect_uri: `${window.location.origin}`,
+                redirect_uri: redirectPath,
                 appState: { target: redirectPath }
             });
 
