@@ -35,6 +35,8 @@ export class Oauth2Auth0 extends Oauth2Auth {
 
     auth0: Auth0Client;
 
+    isAuthenticated = false;
+
     authentications: Authentication = {
         'oauth2': { accessToken: '' }, type: 'oauth2', 'basicAuth': {}
     };
@@ -95,7 +97,8 @@ export class Oauth2Auth0 extends Oauth2Auth {
             domain: this.config.oauth2.host,
             client_id: this.config.oauth2.clientId,
             redirect_uri: this.config.oauth2.redirectUri,
-            audience: this.config.oauth2.audience
+            audience: this.config.oauth2.audience,
+            cacheLocation: 'localstorage'
         });
 
     }
@@ -109,7 +112,8 @@ export class Oauth2Auth0 extends Oauth2Auth {
 
         if (isAuthenticated) {
             const token = await this.auth0.getTokenSilently();
-            this.setToken(token, null);
+            this.isAuthenticated = true;
+            this.setToken(token, null)
             return;
           //  window.location.href = this.config.oauth2.redirectUri;
         }
@@ -145,7 +149,12 @@ export class Oauth2Auth0 extends Oauth2Auth {
     }
 
     implicitLogin() {
-        this.redirectLogin();
+      if (!this.isValidToken() || !this.isValidAccessToken()) {
+          this.redirectLogin();
+      } else {
+          let accessToken = this.storage.getItem('access_token');
+          this.setToken(accessToken, null);
+      }
     }
 
 
@@ -158,15 +167,15 @@ export class Oauth2Auth0 extends Oauth2Auth {
         return this.storage.getItem('access_token');
     }
 
-    async redirectLogin(redirectPath: string = '/'): Promise<void> {
+    async redirectLogin(): Promise<void> {
         if (this.config.oauth2.implicitFlow && typeof window !== 'undefined') {
-
+            const url = this.auth0.buildAuthorizeUrl
             this.auth0.loginWithRedirect({
-                redirect_uri: redirectPath,
-                appState: { target: redirectPath }
+                redirect_uri: this.config.oauth2.redirectUri,
+                appState: { target: this.config.oauth2.redirectUri }
             });
 
-            //this.emit('implicit_redirect', href);
+            this.emit('implicit_redirect', url);
         }
     }
 
