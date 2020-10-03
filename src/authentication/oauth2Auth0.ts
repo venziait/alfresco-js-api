@@ -20,7 +20,6 @@ import { AlfrescoApiConfig } from '../alfrescoApiConfig';
 import { Authentication } from './authentication';
 import * as _minimatch from 'minimatch';
 import { AlfrescoApi } from '../alfrescoApi';
-import { Observable } from 'rxjs';
 import { Oauth2Auth } from './oauth2Auth';
 import createAuth0Client, { Auth0Client } from '@auth0/auth0-spa-js';
 
@@ -111,6 +110,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
         if (isAuthenticated) {
             const token = await this.auth0.getTokenSilently();
             this.setToken(token, null);
+            return;
           //  window.location.href = this.config.oauth2.redirectUri;
         }
 
@@ -256,7 +256,7 @@ export class Oauth2Auth0 extends Oauth2Auth {
      *
      * @returns {Boolean} is logged in
      */
-    isLoggedIn(): Observable<boolean> | boolean {
+    isLoggedIn(): boolean {
         return !!this.authentications.oauth2.accessToken;
     }
 
